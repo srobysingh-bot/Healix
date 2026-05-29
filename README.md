@@ -126,6 +126,10 @@ Healix exposes:
 
 ## Release Notes
 
+### v0.1.1
+
+Reduces failed setup notification noise with one summary notification, adds `notify_failed_setup`, and fixes active issue counting to reflect current issues.
+
 ### v0.1.0
 
 Initial MVP release with dry-run mode, classification, safety policy, background and on-demand recovery, dashboard entities, notifications, repairs, and incident history.
