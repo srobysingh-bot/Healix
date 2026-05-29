@@ -26,7 +26,7 @@ SENSORS = (
         key="active_issues",
         name="Active issues",
         icon="mdi:alert-circle-outline",
-        value_fn=lambda coordinator: coordinator.incident_store.counts_today()["active"],
+        value_fn=lambda coordinator: coordinator.active_issue_count,
     ),
     HealixSensorDescription(
         key="last_failed_entity",

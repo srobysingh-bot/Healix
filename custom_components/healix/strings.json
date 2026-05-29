@@ -51,6 +51,7 @@
           "max_retries_per_hour": "Max retries per hour",
           "max_retries_per_day": "Max retries per day",
           "notification_level": "Notification level",
+          "notify_failed_setup": "Notify failed setup",
           "advanced": "Show advanced settings"
         }
       },

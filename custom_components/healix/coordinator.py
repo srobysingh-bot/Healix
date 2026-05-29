@@ -17,6 +17,7 @@ from homeassistant.util import dt as dt_util
 from .classifier import EntityProfile, HealixClassifier
 from .const import (
     CONF_FAILURE_DURATION,
+    CONF_NOTIFY_FAILED_SETUP,
     CONF_RECOVERY_WAIT,
     CONF_NOTIFICATION_LEVEL,
     CONF_STARTUP_GRACE_PERIOD,
@@ -57,6 +58,7 @@ class HealixCoordinator:
         self._notified_network_status: str | None = None
         self._setup_scan_task: asyncio.Task[Any] | None = None
         self._notified_failed_setups: set[str] = set()
+        self._active_failed_setups: dict[str, str] = {}
         self._state_unsub: Callable[[], None] | None = None
         self._watched_entity_ids: set[str] = set()
 
@@ -95,6 +97,27 @@ class HealixCoordinator:
             return NotificationLevel(raw)
         except ValueError:
             return NotificationLevel.NORMAL
+
+    @property
+    def notify_failed_setup(self) -> bool:
+        """Return whether failed setup notifications are enabled."""
+        return bool(self.options.get(CONF_NOTIFY_FAILED_SETUP, True))
+
+    @property
+    def active_issue_count(self) -> int:
+        """Return current active issues, not incident volume."""
+        failed_entities = {
+            entity_id
+            for entity_id, profile in self.classifier.entities.items()
+            if (
+                profile.policy_mode != PolicyMode.IGNORE
+                and
+                (state := self.hass.states.get(entity_id)) is not None
+                and state.state in STATE_UNAVAILABLE_VALUES
+            )
+        }
+        failed_setups = self._current_failed_setup_entries()
+        return len(failed_entities) + len(failed_setups)
 
     async def async_setup(self) -> None:
         """Set up coordinator listeners."""
@@ -452,14 +475,12 @@ class HealixCoordinator:
             await asyncio.sleep(300)
 
     async def _async_scan_failed_setups(self) -> None:
-        failed_states = {
-            ConfigEntryState.SETUP_ERROR,
-            ConfigEntryState.SETUP_RETRY,
-            getattr(ConfigEntryState, "MIGRATION_ERROR", object()),
+        failed_entries = self._current_failed_setup_entries()
+        self._active_failed_setups = {
+            entry.entry_id: entry.title for entry in failed_entries
         }
-        for config_entry in self.hass.config_entries.async_entries():
-            if config_entry.domain == DOMAIN or config_entry.state not in failed_states:
-                continue
+
+        for config_entry in failed_entries:
             if config_entry.entry_id in self._notified_failed_setups:
                 continue
             self._notified_failed_setups.add(config_entry.entry_id)
@@ -478,18 +499,67 @@ class HealixCoordinator:
                 recovery_result=str(config_entry.state),
                 details={"title": config_entry.title},
             )
+
+        await self._async_notify_failed_setup_summary(failed_entries)
+        if failed_entries:
+            self.last_recovery_result = "failed_setup_detected"
+        self.async_update_listeners()
+
+    def _current_failed_setup_entries(self) -> list[ConfigEntry]:
+        """Return config entries currently in failed setup states."""
+        failed_states = {
+            ConfigEntryState.SETUP_ERROR,
+            ConfigEntryState.SETUP_RETRY,
+            getattr(ConfigEntryState, "MIGRATION_ERROR", object()),
+        }
+        return [
+            config_entry
+            for config_entry in self.hass.config_entries.async_entries()
+            if config_entry.domain != DOMAIN and config_entry.state in failed_states
+        ]
+
+    async def _async_notify_failed_setup_summary(
+        self, failed_entries: list[ConfigEntry]
+    ) -> None:
+        """Update failed setup notification according to verbosity."""
+        summary_notification_id = f"{DOMAIN}_failed_setup_summary"
+        if not self.notify_failed_setup or not failed_entries:
+            persistent_notification.async_dismiss(
+                self.hass, notification_id=summary_notification_id
+            )
+            return
+
+        titles = [entry.title for entry in failed_entries]
+        preview = ", ".join(titles[:3])
+        if len(titles) > 3:
+            preview = f"{preview}..."
+        persistent_notification.async_create(
+            self.hass,
+            (
+                f"Healix detected {len(titles)} setup failures: {preview}\n\n"
+                "Action: Home Assistant retry is allowed to continue. Healix will not "
+                "repeatedly reload these integrations."
+            ),
+            title=f"{NAME}: setup failures",
+            notification_id=summary_notification_id,
+        )
+
+        if self.notification_level != NotificationLevel.VERBOSE:
+            return
+
+        for config_entry in failed_entries:
+            if config_entry.entry_id not in self._notified_failed_setups:
+                continue
             persistent_notification.async_create(
                 self.hass,
                 (
                     f"Healix detected setup failure for {config_entry.title}.\n\n"
-                    "Action: Home Assistant retry is allowed to continue. Healix will not "
-                    "repeatedly reload this integration."
+                    "Action: Home Assistant retry is allowed to continue. Healix will "
+                    "not repeatedly reload this integration."
                 ),
                 title=f"{NAME}: setup failure",
                 notification_id=f"{DOMAIN}_failed_setup_{config_entry.entry_id}",
             )
-            self.last_recovery_result = "failed_setup_detected"
-            self.async_update_listeners()
 
     async def _record_and_notify(
         self,

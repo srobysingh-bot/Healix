@@ -24,6 +24,7 @@ from .const import (
     CONF_MAX_RETRIES_PER_HOUR,
     CONF_MODE,
     CONF_NETWORK_HEALTH_ENTITIES,
+    CONF_NOTIFY_FAILED_SETUP,
     CONF_NOTIFICATION_LEVEL,
     CONF_ON_DEMAND_INTEGRATIONS,
     CONF_PROTECTED_INTEGRATIONS,
@@ -60,6 +61,7 @@ def _default_options() -> dict[str, Any]:
         CONF_MAX_RETRIES_PER_DAY: DEFAULT_MAX_RETRIES_PER_DAY,
         CONF_EXPONENTIAL_BACKOFF: True,
         CONF_NOTIFICATION_LEVEL: NotificationLevel.NORMAL.value,
+        CONF_NOTIFY_FAILED_SETUP: True,
         CONF_NETWORK_HEALTH_ENTITIES: [],
         CONF_IMPORTANT_AREAS: [],
         CONF_PROTECTED_INTEGRATIONS: sorted(PROTECTED_INTEGRATIONS),
@@ -245,6 +247,10 @@ class HealixOptionsFlow(_OptionsFlowBase):
                     CONF_NOTIFICATION_LEVEL,
                     default=current[CONF_NOTIFICATION_LEVEL],
                 ): vol.In([level.value for level in NotificationLevel]),
+                vol.Required(
+                    CONF_NOTIFY_FAILED_SETUP,
+                    default=current[CONF_NOTIFY_FAILED_SETUP],
+                ): bool,
                 vol.Optional("advanced", default=False): bool,
             }
         )

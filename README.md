@@ -19,6 +19,7 @@ This is an MVP release. Install and test in dry-run mode first.
 - Startup grace period, cooldowns, retry limits, and exponential backoff
 - Safe on-demand service wrappers for remotes and service calls
 - Persistent notifications, Repair issues, and incident history
+- Aggregated failed setup notifications with `notify_failed_setup`
 - Dashboard sensors and buttons
 
 ## HACS Installation
