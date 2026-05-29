@@ -1,0 +1,31 @@
+{
+  "services": {
+    "safe_remote_command": { "service": "mdi:remote" },
+    "safe_service_call": { "service": "mdi:shield-check-outline" },
+    "manual_recover": { "service": "mdi:reload-alert" },
+    "run_diagnosis": { "service": "mdi:stethoscope" },
+    "pause_recovery": { "service": "mdi:pause-circle-outline" },
+    "resume_recovery": { "service": "mdi:play-circle-outline" },
+    "export_report": { "service": "mdi:file-export-outline" }
+  },
+  "entity": {
+    "sensor": {
+      "active_issues": { "default": "mdi:alert-circle-outline" },
+      "last_failed_entity": { "default": "mdi:home-alert-outline" },
+      "last_recovery_result": { "default": "mdi:history" },
+      "reload_count_today": { "default": "mdi:reload" },
+      "blocked_count_today": { "default": "mdi:block-helper" },
+      "network_health": { "default": "mdi:network-outline" }
+    },
+    "binary_sensor": {
+      "recovery_active": { "default": "mdi:autorenew" },
+      "network_outage": { "default": "mdi:network-off-outline" }
+    },
+    "button": {
+      "run_diagnosis": { "default": "mdi:stethoscope" },
+      "pause_recovery": { "default": "mdi:pause-circle-outline" },
+      "resume_recovery": { "default": "mdi:play-circle-outline" },
+      "export_report": { "default": "mdi:file-export-outline" }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "domain": "healix",
+  "name": "Healix",
+  "after_dependencies": ["persistent_notification"],
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/custom-components/healix",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/custom-components/healix/issues",
+  "quality_scale": "bronze",
+  "version": "0.1.0"
+}

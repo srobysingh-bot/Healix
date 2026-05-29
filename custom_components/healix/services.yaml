@@ -1,0 +1,63 @@
+safe_remote_command:
+  name: Safe remote command
+  description: Diagnose and recover a remote entity before sending a command.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: remote
+    command:
+      required: true
+      selector:
+        text:
+
+safe_service_call:
+  name: Safe service call
+  description: Diagnose and recover target entities before calling a Home Assistant service.
+  fields:
+    domain:
+      required: true
+      selector:
+        text:
+    service:
+      required: true
+      selector:
+        text:
+    target:
+      required: false
+      selector:
+        object:
+    data:
+      required: false
+      selector:
+        object:
+
+manual_recover:
+  name: Manual recover
+  description: Manually reload the owning config entry for an entity or a specific config entry.
+  fields:
+    entity_id:
+      required: false
+      selector:
+        entity:
+    config_entry_id:
+      required: false
+      selector:
+        text:
+
+run_diagnosis:
+  name: Run diagnosis
+  description: Refresh Healix discovery and record a diagnosis snapshot.
+
+pause_recovery:
+  name: Pause recovery
+  description: Pause automatic recovery.
+
+resume_recovery:
+  name: Resume recovery
+  description: Resume automatic recovery.
+
+export_report:
+  name: Export report
+  description: Write the Healix incident report to the Home Assistant log.

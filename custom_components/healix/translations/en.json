@@ -1,0 +1,101 @@
+{
+  "title": "Healix",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Welcome",
+        "description": "Healix watches important Home Assistant entities, diagnoses failures, and safely recovers only the affected config entry when policy allows.\n\nDry run is enabled by default so you can see what Healix would do before allowing recovery."
+      },
+      "mode": {
+        "title": "Mode",
+        "description": "Choose how Healix should behave after setup.",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "policy_review": {
+        "title": "Auto-detected policy review",
+        "description": "Protected integrations: {protected}\n\nAuto recovery integrations: {background}\n\nOn-demand integrations: {on_demand}\n\nIgnored or monitor-only integrations: {monitor_only}"
+      },
+      "safety": {
+        "title": "Safety settings",
+        "description": "Keep the defaults unless you already know you need different timing.",
+        "data": {
+          "startup_grace_period": "Startup grace period",
+          "cooldown_per_config_entry": "Cooldown per config entry",
+          "max_retries_per_hour": "Max retries per hour",
+          "max_retries_per_day": "Max retries per day",
+          "notification_level": "Notification level"
+        }
+      },
+      "finish": {
+        "title": "Finish",
+        "description": "Healix will create dashboard sensors and buttons.\n\nMode: {mode}\nStartup grace: {startup_grace} seconds\nCooldown: {cooldown} seconds"
+      }
+    },
+    "abort": {
+      "already_configured": "Healix is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Healix options",
+        "description": "Advanced settings are hidden unless enabled.",
+        "data": {
+          "mode": "Mode",
+          "startup_grace_period": "Startup grace period",
+          "failure_duration": "Failure duration",
+          "recovery_wait": "Recovery wait",
+          "cooldown_per_config_entry": "Cooldown per config entry",
+          "max_retries_per_hour": "Max retries per hour",
+          "max_retries_per_day": "Max retries per day",
+          "notification_level": "Notification level",
+          "advanced": "Show advanced settings"
+        }
+      },
+      "advanced": {
+        "title": "Advanced",
+        "description": "Comma-separated values. Labels still override these defaults.",
+        "data": {
+          "network_health_entities": "Network health entities",
+          "important_areas": "Important area IDs",
+          "protected_integrations": "Protected integrations",
+          "background_integrations": "Background recovery integrations",
+          "on_demand_integrations": "On-demand integrations",
+          "ignored_integrations": "Ignored integrations"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "active_issues": { "name": "Active issues" },
+      "last_failed_entity": { "name": "Last failed entity" },
+      "last_recovery_result": { "name": "Last recovery result" },
+      "reload_count_today": { "name": "Reload count today" },
+      "blocked_count_today": { "name": "Blocked count today" },
+      "network_health": { "name": "Network health" }
+    },
+    "binary_sensor": {
+      "recovery_active": { "name": "Recovery active" },
+      "network_outage": { "name": "Network outage" }
+    },
+    "button": {
+      "run_diagnosis": { "name": "Run diagnosis" },
+      "pause_recovery": { "name": "Pause recovery" },
+      "resume_recovery": { "name": "Resume recovery" },
+      "export_report": { "name": "Export report" }
+    }
+  },
+  "issues": {
+    "retry_limit_reached": {
+      "title": "Healix stopped auto-recovery for {integration}",
+      "description": "Healix reached a retry limit for {integration}. Reason: {reason}. Check the device, network, credentials, or integration logs before trying again."
+    },
+    "failed_setup": {
+      "title": "Healix detected setup failure for {integration}",
+      "description": "{integration} is in a Home Assistant setup failure or retry state. Healix will not repeatedly reload it while Home Assistant is already retrying."
+    }
+  }
+}
