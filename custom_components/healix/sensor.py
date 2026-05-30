@@ -29,6 +29,24 @@ SENSORS = (
         value_fn=lambda coordinator: coordinator.active_issue_count,
     ),
     HealixSensorDescription(
+        key="unavailable_entities_total",
+        name="Unavailable entities total",
+        icon="mdi:counter",
+        value_fn=lambda coordinator: coordinator.unavailable_entities_total,
+    ),
+    HealixSensorDescription(
+        key="actionable_issues",
+        name="Actionable issues",
+        icon="mdi:alert-decagram-outline",
+        value_fn=lambda coordinator: coordinator.actionable_issue_count,
+    ),
+    HealixSensorDescription(
+        key="ignored_issues",
+        name="Ignored issues",
+        icon="mdi:bell-off-outline",
+        value_fn=lambda coordinator: coordinator.ignored_issue_count,
+    ),
+    HealixSensorDescription(
         key="last_failed_entity",
         name="Last failed entity",
         icon="mdi:home-alert-outline",

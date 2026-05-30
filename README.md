@@ -16,6 +16,7 @@ This is an MVP release. Install and test in dry-run mode first.
 - Policy modes: ignore, monitor only, notify only, background recovery, on-demand recovery, protected
 - Protected integrations by default for infrastructure and safety-sensitive systems
 - Network health gate and broad-outage detection before reloads
+- Aggregated broad-outage summary notification
 - Startup grace period, cooldowns, retry limits, and exponential backoff
 - Safe on-demand service wrappers for remotes and service calls
 - Persistent notifications, Repair issues, and incident history
@@ -105,6 +106,8 @@ Healix diagnoses before reload. It will block automatic recovery when:
 - Retry limits are reached
 - The entity is ignored, disabled, hidden, diagnostic, battery, RSSI, signal, linkquality, or status/debug by default
 
+If network health entities are not configured, `sensor.healix_network_health` shows `not_configured` as setup guidance. A broad outage can still be detected from entity states only, and recovery remains blocked.
+
 Healix never restarts Home Assistant.
 
 ## Dashboard Entities
@@ -112,6 +115,9 @@ Healix never restarts Home Assistant.
 Healix exposes:
 
 - `sensor.healix_active_issues`
+- `sensor.healix_unavailable_entities_total`
+- `sensor.healix_actionable_issues`
+- `sensor.healix_ignored_issues`
 - `sensor.healix_last_failed_entity`
 - `sensor.healix_last_recovery_result`
 - `sensor.healix_reload_count_today`

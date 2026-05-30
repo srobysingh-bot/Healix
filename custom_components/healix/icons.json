@@ -11,6 +11,9 @@
   "entity": {
     "sensor": {
       "active_issues": { "default": "mdi:alert-circle-outline" },
+      "unavailable_entities_total": { "default": "mdi:counter" },
+      "actionable_issues": { "default": "mdi:alert-decagram-outline" },
+      "ignored_issues": { "default": "mdi:bell-off-outline" },
       "last_failed_entity": { "default": "mdi:home-alert-outline" },
       "last_recovery_result": { "default": "mdi:history" },
       "reload_count_today": { "default": "mdi:reload" },

@@ -14,6 +14,7 @@ from .const import (
     CONF_IMPORTANT_AREAS,
     IMPORTANT_ENTITY_DOMAINS,
     LABEL_CRITICAL,
+    LABEL_ON_DEMAND,
     LOW_IMPORTANCE_SENSOR_HINTS,
     PolicyMode,
 )
@@ -78,7 +79,10 @@ class HealixClassifier:
                 labels=profile.labels,
                 is_important=profile.important,
                 low_importance=profile.low_importance
-                and LABEL_CRITICAL not in profile.labels,
+                and not self._allows_low_importance_recovery(
+                    profile.entity_domain,
+                    profile.labels,
+                ),
                 disabled_or_hidden=(profile.disabled or profile.hidden)
                 and LABEL_CRITICAL not in profile.labels,
             )
@@ -223,8 +227,22 @@ class HealixClassifier:
     def _is_low_importance(state: State, diagnostic: bool) -> bool:
         if diagnostic:
             return True
+        if state.domain in {"button", "event", "update"}:
+            return True
+        if state.domain in {"input_number", "input_select", "number", "select"}:
+            return True
         name = f"{state.entity_id} {state.name}".lower()
         device_class = str(state.attributes.get("device_class", "")).lower()
         entity_category = str(state.attributes.get("entity_category", "")).lower()
         haystack = f"{name} {device_class} {entity_category}"
         return any(hint in haystack for hint in LOW_IMPORTANCE_SENSOR_HINTS)
+
+    @staticmethod
+    def _allows_low_importance_recovery(
+        entity_domain: str,
+        labels: set[str],
+    ) -> bool:
+        """Return whether explicit labels should override noisy defaults."""
+        if LABEL_CRITICAL in labels:
+            return True
+        return entity_domain == "media_player" and LABEL_ON_DEMAND in labels

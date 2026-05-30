@@ -93,6 +93,9 @@ PROTECTED_INTEGRATIONS: Final = {
     "matter",
     "mqtt",
     "mqtt_room_presence",
+    "hassio",
+    "supervisor",
+    "system_health",
     "thread",
     "unifi",
     "zha",
@@ -155,15 +158,30 @@ IMPORTANT_ENTITY_DOMAINS: Final = {
 }
 
 LOW_IMPORTANCE_SENSOR_HINTS: Final = {
+    "alert",
+    "attention",
     "battery",
+    "browser",
+    "current_song",
     "debug",
     "diagnostic",
+    "favorite_current_song",
+    "health",
+    "helper",
     "linkquality",
     "link_quality",
     "lqi",
+    "laptop",
+    "macbook",
+    "phone",
+    "problem",
     "rssi",
     "signal",
     "status",
+    "tablet",
+    "control",
+    "update",
+    "warning",
 }
 
 SERVICE_SAFE_REMOTE_COMMAND: Final = "safe_remote_command"

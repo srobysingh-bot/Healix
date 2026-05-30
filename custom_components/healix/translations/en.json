@@ -57,9 +57,9 @@
       },
       "advanced": {
         "title": "Advanced",
-        "description": "Comma-separated values. Labels still override these defaults.",
+        "description": "Comma-separated values. Labels still override these defaults.\n\nFor network health entities, add router or internet ping binary sensors. If left empty, Healix shows not_configured as setup guidance, not as a fault.",
         "data": {
-          "network_health_entities": "Network health entities",
+          "network_health_entities": "Router/internet ping binary sensors",
           "important_areas": "Important area IDs",
           "protected_integrations": "Protected integrations",
           "background_integrations": "Background recovery integrations",
@@ -72,6 +72,9 @@
   "entity": {
     "sensor": {
       "active_issues": { "name": "Active issues" },
+      "unavailable_entities_total": { "name": "Unavailable entities total" },
+      "actionable_issues": { "name": "Actionable issues" },
+      "ignored_issues": { "name": "Ignored issues" },
       "last_failed_entity": { "name": "Last failed entity" },
       "last_recovery_result": { "name": "Last recovery result" },
       "reload_count_today": { "name": "Reload count today" },

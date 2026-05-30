@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 import logging
@@ -16,11 +17,13 @@ from homeassistant.util import dt as dt_util
 
 from .classifier import EntityProfile, HealixClassifier
 from .const import (
+    CONF_COOLDOWN_PER_CONFIG_ENTRY,
     CONF_FAILURE_DURATION,
     CONF_NOTIFY_FAILED_SETUP,
     CONF_RECOVERY_WAIT,
     CONF_NOTIFICATION_LEVEL,
     CONF_STARTUP_GRACE_PERIOD,
+    DEFAULT_COOLDOWN_PER_CONFIG_ENTRY,
     DEFAULT_FAILURE_DURATION,
     DEFAULT_RECOVERY_WAIT,
     DEFAULT_STARTUP_GRACE_PERIOD,
@@ -61,6 +64,7 @@ class HealixCoordinator:
         self._active_failed_setups: dict[str, str] = {}
         self._state_unsub: Callable[[], None] | None = None
         self._watched_entity_ids: set[str] = set()
+        self._last_blocked_notification: dict[tuple[str, str], float] = {}
 
         self.policy = HealixPolicyEngine(self.options)
         self.classifier = HealixClassifier(hass, self.policy)
@@ -106,11 +110,21 @@ class HealixCoordinator:
     @property
     def active_issue_count(self) -> int:
         """Return current active issues, not incident volume."""
+        return self.actionable_issue_count
+
+    @property
+    def unavailable_entities_total(self) -> int:
+        """Return all currently unavailable/unknown entities seen by HA."""
+        return len(self._current_unavailable_entity_ids())
+
+    @property
+    def actionable_issue_count(self) -> int:
+        """Return current actionable unavailable entities plus setup failures."""
         failed_entities = {
             entity_id
             for entity_id, profile in self.classifier.entities.items()
             if (
-                profile.policy_mode != PolicyMode.IGNORE
+                self._is_actionable_profile(profile)
                 and
                 (state := self.hass.states.get(entity_id)) is not None
                 and state.state in STATE_UNAVAILABLE_VALUES
@@ -118,6 +132,21 @@ class HealixCoordinator:
         }
         failed_setups = self._current_failed_setup_entries()
         return len(failed_entities) + len(failed_setups)
+
+    @property
+    def ignored_issue_count(self) -> int:
+        """Return unavailable entities excluded by Healix policy."""
+        actionable_unavailable = {
+            entity_id
+            for entity_id, profile in self.classifier.entities.items()
+            if (
+                self._is_actionable_profile(profile)
+                and
+                (state := self.hass.states.get(entity_id)) is not None
+                and state.state in STATE_UNAVAILABLE_VALUES
+            )
+        }
+        return max(0, self.unavailable_entities_total - len(actionable_unavailable))
 
     async def async_setup(self) -> None:
         """Set up coordinator listeners."""
@@ -256,10 +285,15 @@ class HealixCoordinator:
             _LOGGER.debug("Skipping %s because it has no Healix profile", entity_id)
             return None
 
-        self.last_failed_entity = entity_id
+        actionable_profile = self._is_actionable_profile(profile)
+        if actionable_profile:
+            self.last_failed_entity = entity_id
         diagnosis = self.diagnostics.diagnose(profile.config_entry_id)
         self.last_network_status = diagnosis.network_status
         self.network_outage = not diagnosis.network_healthy or diagnosis.broad_outage
+        if diagnosis.broad_outage and not actionable_profile:
+            if preferred_entity := self._preferred_actionable_failed_entity():
+                self.last_failed_entity = preferred_entity
 
         if self.paused and not manual:
             decision_reason = "recovery_paused"
@@ -380,6 +414,35 @@ class HealixCoordinator:
             all_entities = self.classifier.affected_entities(config_entry_id)
             diagnosis = self.diagnostics.diagnose(config_entry_id)
             config_entry = self.hass.config_entries.async_get_entry(config_entry_id)
+            if not diagnosis.network_healthy or diagnosis.broad_outage:
+                blocked_reason = (
+                    "network_health_gate"
+                    if not diagnosis.network_healthy
+                    else "broad_outage"
+                )
+                await self.incident_store.async_add(
+                    integration_domain=config_entry.domain if config_entry else None,
+                    config_entry_id=config_entry_id,
+                    ha_uptime_seconds=self.ha_uptime_seconds,
+                    network_health=diagnosis.network_status,
+                    affected_entities=all_entities,
+                    decision="manual_recover",
+                    reload_attempted=False,
+                    blocked_reason=blocked_reason,
+                    recovery_result="blocked",
+                    details={
+                        "diagnosis": diagnosis.reason,
+                        "target_failed_entities": entity_ids,
+                        "title": config_entry.title if config_entry else None,
+                    },
+                )
+                self.last_recovery_result = f"blocked:{blocked_reason}"
+                if diagnosis.broad_outage and self._should_notify_broad_outage(
+                    diagnosis
+                ):
+                    await self._async_notify_broad_outage(diagnosis)
+                self.async_update_listeners()
+                return RecoveryResult(False, False, blocked_reason)
             self.policy.record_attempt(config_entry_id)
             result = await self.recovery.async_reload_and_verify(
                 config_entry_id=config_entry_id,
@@ -432,6 +495,8 @@ class HealixCoordinator:
             },
         )
         self.last_recovery_result = diagnosis.reason
+        if diagnosis.broad_outage and self._should_notify_broad_outage(diagnosis):
+            await self._async_notify_broad_outage(diagnosis)
         self.async_update_listeners()
 
     async def async_pause(self) -> None:
@@ -461,10 +526,16 @@ class HealixCoordinator:
             return [include_entity_id] if include_entity_id else []
         failed: set[str] = set()
         for entity_id in self.classifier.affected_entities(config_entry_id):
+            profile = self.classifier.profile_for(entity_id)
+            if profile is not None and not self._is_actionable_profile(profile):
+                continue
             state = self.hass.states.get(entity_id)
             if state is not None and state.state in STATE_UNAVAILABLE_VALUES:
                 failed.add(entity_id)
-        if include_entity_id:
+        if include_entity_id and (
+            (profile := self.classifier.profile_for(include_entity_id)) is None
+            or self._is_actionable_profile(profile)
+        ):
             failed.add(include_entity_id)
         return sorted(failed)
 
@@ -602,6 +673,11 @@ class HealixCoordinator:
                 "policy_mode": profile.policy_mode.value,
             },
         )
+        if diagnosis.broad_outage:
+            if self._should_notify_broad_outage(diagnosis):
+                await self._async_notify_broad_outage(diagnosis)
+            return
+
         if self._should_notify(
             notify=notify,
             reload_attempted=reload_attempted,
@@ -610,6 +686,11 @@ class HealixCoordinator:
             dry_run=dry_run,
             diagnosis=diagnosis,
         ):
+            if blocked_reason and not self._blocked_notification_allowed(
+                profile,
+                blocked_reason,
+            ):
+                return
             await self._async_notify(
                 profile,
                 diagnosis,
@@ -619,6 +700,133 @@ class HealixCoordinator:
                 recovered_after_seconds=recovered_after_seconds,
                 dry_run=dry_run,
             )
+
+    def _current_unavailable_entity_ids(self) -> list[str]:
+        """Return unavailable/unknown entities, excluding Healix dashboard entities."""
+        return sorted(
+            state.entity_id
+            for state in self.hass.states.async_all()
+            if state.domain != DOMAIN and state.state in STATE_UNAVAILABLE_VALUES
+        )
+
+    @staticmethod
+    def _is_actionable_profile(profile: EntityProfile) -> bool:
+        """Return whether a profile should count as an actionable issue."""
+        return profile.policy_mode in {
+            PolicyMode.BACKGROUND_RECOVERY,
+            PolicyMode.NOTIFY_ONLY,
+            PolicyMode.ON_DEMAND_RECOVERY,
+            PolicyMode.PROTECTED,
+        }
+
+    def _blocked_notification_allowed(
+        self,
+        profile: EntityProfile,
+        blocked_reason: str,
+    ) -> bool:
+        """Throttle repeated blocked notifications for the same entity/reason."""
+        cooldown = int(
+            self.options.get(
+                CONF_COOLDOWN_PER_CONFIG_ENTRY,
+                DEFAULT_COOLDOWN_PER_CONFIG_ENTRY,
+            )
+        )
+        now = dt_util.utcnow().timestamp()
+        key = (profile.entity_id, blocked_reason)
+        last = self._last_blocked_notification.get(key)
+        if last is not None and now - last < cooldown:
+            return False
+        self._last_blocked_notification[key] = now
+        return True
+
+    def _should_notify_broad_outage(self, diagnosis: Diagnosis) -> bool:
+        """Return whether the broad-outage summary should be shown."""
+        if self.notification_level == NotificationLevel.QUIET:
+            return (
+                diagnosis.affected_unavailable_count >= 25
+                or diagnosis.affected_config_entries >= 8
+            )
+        return True
+
+    async def _async_notify_broad_outage(self, diagnosis: Diagnosis) -> None:
+        """Create/update the single broad-outage summary notification."""
+        snapshot = self._broad_outage_snapshot()
+        entity_count = snapshot["entity_count"] or diagnosis.affected_unavailable_count
+        integration_count = (
+            snapshot["integration_count"] or diagnosis.affected_config_entries
+        )
+        detail_limit = 10 if self.notification_level == NotificationLevel.VERBOSE else 5
+        message_parts = [
+            (
+                "Healix detected a broad outage affecting "
+                f"{entity_count} entities across {integration_count} integrations. "
+                "Recovery is paused/blocked until the system stabilizes."
+            )
+        ]
+        message_parts.append("Action: notify only.")
+        if diagnosis.network_status == "not_configured":
+            message_parts.append(
+                "Network health sensors are not configured; broad outage detected from entity states only."
+            )
+
+        integrations = snapshot["top_integrations"][:detail_limit]
+        entities = snapshot["top_entities"][:detail_limit]
+        if integrations:
+            message_parts.append(
+                "Top affected integrations: "
+                + ", ".join(f"{name} ({count})" for name, count in integrations)
+            )
+        if entities:
+            message_parts.append("Affected entities: " + ", ".join(entities))
+
+        persistent_notification.async_create(
+            self.hass,
+            "\n\n".join(message_parts),
+            title=f"{NAME}: broad outage",
+            notification_id=f"{DOMAIN}_broad_outage_summary",
+        )
+
+    def _broad_outage_snapshot(self) -> dict[str, Any]:
+        """Build a compact snapshot for the broad-outage summary."""
+        unavailable = self._current_unavailable_entity_ids()
+        integration_counts: Counter[str] = Counter()
+        actionable_entities: list[str] = []
+        other_entities: list[str] = []
+
+        for entity_id in unavailable:
+            profile = self.classifier.profile_for(entity_id)
+            integration = (
+                profile.integration_domain
+                if profile and profile.integration_domain
+                else entity_id.split(".", 1)[0]
+            )
+            integration_counts[integration] += 1
+            if profile is not None and self._is_actionable_profile(profile):
+                actionable_entities.append(entity_id)
+            else:
+                other_entities.append(entity_id)
+
+        top_entities = sorted(actionable_entities) + sorted(other_entities)
+        return {
+            "entity_count": len(unavailable),
+            "integration_count": len(integration_counts),
+            "top_integrations": integration_counts.most_common(10),
+            "top_entities": top_entities[:10],
+        }
+
+    def _preferred_actionable_failed_entity(self) -> str | None:
+        """Return a stable actionable failed entity for dashboard context."""
+        actionable = [
+            entity_id
+            for entity_id, profile in self.classifier.entities.items()
+            if (
+                self._is_actionable_profile(profile)
+                and
+                (state := self.hass.states.get(entity_id)) is not None
+                and state.state in STATE_UNAVAILABLE_VALUES
+            )
+        ]
+        return sorted(actionable)[0] if actionable else None
 
     def _should_notify(
         self,
