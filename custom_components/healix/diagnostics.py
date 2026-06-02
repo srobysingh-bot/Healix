@@ -40,7 +40,11 @@ class HealixDiagnostics:
 
     def network_health(self) -> tuple[bool, str]:
         """Evaluate configured network health entities."""
-        configured = self.network_health_entities
+        configured = [
+            entity_id.strip()
+            for entity_id in self.options.get(CONF_NETWORK_HEALTH_ENTITIES, [])
+            if isinstance(entity_id, str) and entity_id.strip()
+        ]
         if not configured:
             return True, "not_configured"
 

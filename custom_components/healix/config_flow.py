@@ -49,6 +49,15 @@ _OptionsFlowBase = getattr(
 )
 
 
+def _clean_csv_list(value: Any) -> list[str]:
+    """Return CSV values with blank entries removed."""
+    return [
+        item.strip()
+        for item in cv.ensure_list_csv(value)
+        if isinstance(item, str) and item.strip()
+    ]
+
+
 def _default_options() -> dict[str, Any]:
     return {
         CONF_MODE: HealixMode.DRY_RUN.value,
@@ -263,22 +272,22 @@ class HealixOptionsFlow(_OptionsFlowBase):
         current = {**_default_options(), **self.config_entry.options}
         if user_input is not None:
             options = {**current}
-            options[CONF_NETWORK_HEALTH_ENTITIES] = cv.ensure_list_csv(
+            options[CONF_NETWORK_HEALTH_ENTITIES] = _clean_csv_list(
                 user_input.get(CONF_NETWORK_HEALTH_ENTITIES, "")
             )
-            options[CONF_IMPORTANT_AREAS] = cv.ensure_list_csv(
+            options[CONF_IMPORTANT_AREAS] = _clean_csv_list(
                 user_input.get(CONF_IMPORTANT_AREAS, "")
             )
-            options[CONF_PROTECTED_INTEGRATIONS] = cv.ensure_list_csv(
+            options[CONF_PROTECTED_INTEGRATIONS] = _clean_csv_list(
                 user_input.get(CONF_PROTECTED_INTEGRATIONS, "")
             )
-            options[CONF_BACKGROUND_INTEGRATIONS] = cv.ensure_list_csv(
+            options[CONF_BACKGROUND_INTEGRATIONS] = _clean_csv_list(
                 user_input.get(CONF_BACKGROUND_INTEGRATIONS, "")
             )
-            options[CONF_ON_DEMAND_INTEGRATIONS] = cv.ensure_list_csv(
+            options[CONF_ON_DEMAND_INTEGRATIONS] = _clean_csv_list(
                 user_input.get(CONF_ON_DEMAND_INTEGRATIONS, "")
             )
-            options[CONF_IGNORED_INTEGRATIONS] = cv.ensure_list_csv(
+            options[CONF_IGNORED_INTEGRATIONS] = _clean_csv_list(
                 user_input.get(CONF_IGNORED_INTEGRATIONS, "")
             )
             return self.async_create_entry(data=options)
