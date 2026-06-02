@@ -10,6 +10,7 @@
   },
   "entity": {
     "sensor": {
+      "status": { "default": "mdi:heart-pulse" },
       "active_issues": { "default": "mdi:alert-circle-outline" },
       "unavailable_entities_total": { "default": "mdi:counter" },
       "actionable_issues": { "default": "mdi:alert-decagram-outline" },

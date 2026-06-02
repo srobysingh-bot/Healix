@@ -55,6 +55,7 @@ class HealixCoordinator:
         self.last_recovery_result: str | None = None
         self.last_network_status = "unknown"
         self.network_outage = False
+        self.last_broad_outage = False
         self._listeners: list[Callable[[], None]] = []
         self._failure_tasks: dict[str, asyncio.Task[Any]] = {}
         self._failure_started: dict[str, datetime] = {}
@@ -147,6 +148,27 @@ class HealixCoordinator:
             )
         }
         return max(0, self.unavailable_entities_total - len(actionable_unavailable))
+
+    @property
+    def status(self) -> str:
+        """Return a compact user-facing Healix status."""
+        if self.paused:
+            return "paused"
+        if self.recovery_active:
+            return "recovering"
+        if self.last_broad_outage:
+            return "broad_outage"
+        if self.network_outage and self.last_network_status not in {
+            "healthy",
+            "not_configured",
+            "unknown",
+        }:
+            return "blocked_network"
+        if self._current_failed_setup_entries():
+            return "setup_failures"
+        if self.actionable_issue_count:
+            return "watching"
+        return "healthy"
 
     async def async_setup(self) -> None:
         """Set up coordinator listeners."""
@@ -291,6 +313,7 @@ class HealixCoordinator:
         diagnosis = self.diagnostics.diagnose(profile.config_entry_id)
         self.last_network_status = diagnosis.network_status
         self.network_outage = not diagnosis.network_healthy or diagnosis.broad_outage
+        self.last_broad_outage = diagnosis.broad_outage
         if diagnosis.broad_outage and not actionable_profile:
             if preferred_entity := self._preferred_actionable_failed_entity():
                 self.last_failed_entity = preferred_entity
@@ -413,6 +436,9 @@ class HealixCoordinator:
             entity_ids = self._failed_entities_for_config_entry(config_entry_id)
             all_entities = self.classifier.affected_entities(config_entry_id)
             diagnosis = self.diagnostics.diagnose(config_entry_id)
+            self.last_network_status = diagnosis.network_status
+            self.network_outage = not diagnosis.network_healthy or diagnosis.broad_outage
+            self.last_broad_outage = diagnosis.broad_outage
             config_entry = self.hass.config_entries.async_get_entry(config_entry_id)
             if not diagnosis.network_healthy or diagnosis.broad_outage:
                 blocked_reason = (
@@ -484,6 +510,7 @@ class HealixCoordinator:
         diagnosis = self.diagnostics.diagnose()
         self.last_network_status = diagnosis.network_status
         self.network_outage = not diagnosis.network_healthy or diagnosis.broad_outage
+        self.last_broad_outage = diagnosis.broad_outage
         await self.incident_store.async_add(
             network_health=diagnosis.network_status,
             ha_uptime_seconds=self.ha_uptime_seconds,

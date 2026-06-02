@@ -71,6 +71,7 @@
   },
   "entity": {
     "sensor": {
+      "status": { "name": "Status" },
       "active_issues": { "name": "Active issues" },
       "unavailable_entities_total": { "name": "Unavailable entities total" },
       "actionable_issues": { "name": "Actionable issues" },
